@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from pipeline import hitung_skor_risiko, tetapkan_level_risiko
 import joblib
 from category_encoders.target_encoder import TargetEncoder
 import numpy as np 
