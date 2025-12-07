@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from pipeline import hitung_skor_risiko, tetapkan_level_risiko
-from category_encoders.target_encoder import TargetEncoder
 
 # ==========================
 # 🔧 CUSTOM SCORING LOGIC (MANUAL SCORING - DITAMBAHKAN)
