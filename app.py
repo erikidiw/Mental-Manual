@@ -42,10 +42,10 @@ try:
     feature_cols = artifacts['feature_cols']
     UNIQUE_OPTS = artifacts['unique_options']
     
-    st.success("Model Gradient Boosting berhasil dimuat.")
+    st.success("Model Ensemble (Voting Classifier) berhasil dimuat.")
     
 except Exception as e:
-    st.error(f"Gagal memuat artifacts. Pastikan 'pipeline_artifacts.pkl' sudah dibuat dengan Gradient Boosting: {e}")
+    st.error(f"Gagal memuat artifacts. Pastikan 'pipeline_artifacts.pkl' sudah dibuat: {e}")
     st.stop()
 
 
@@ -88,16 +88,19 @@ def preprocess_and_predict(input_data):
     # Konversi ke float
     df_processed = df_single.apply(pd.to_numeric, errors='coerce').fillna(0).astype(float)
     
-    prediction = pipeline.predict(df_processed)[0]
-    return prediction
+    # Memprediksi probabilitas untuk semua kelas (0, 1, 2)
+    predictions_proba = pipeline.predict_proba(df_processed)[0]
+    prediction = np.argmax(predictions_proba) # Mempertahankan prediksi kelas utama
+    
+    return prediction, predictions_proba
 
 
 # ==========================
 # 🧠 STREAMLIT UI
 # ==========================
 
-st.title("Sistem Prediksi Risiko Depresi Mahasiswa (Gradient Boosting)")
-st.write("Skor risiko ditentukan sepenuhnya oleh bobot yang dipelajari model.")
+st.title("Sistem Prediksi Risiko Depresi Mahasiswa (Probabilitas Risiko)")
+st.write("Bobot setiap pertanyaan memengaruhi probabilitas prediksi.")
 
 col1, col2, col3 = st.columns(3)
 
@@ -122,7 +125,7 @@ with col3:
     st.subheader("Faktor Risiko Mental")
     academic = st.slider("Tekanan Akademik (1=Rendah, 5=Tinggi)", min_value=1, max_value=5, value=3, step=1)
     satisfaction = st.slider("Kepuasan Belajar (1=Rendah, 5=Tinggi)", min_value=1, max_value=5, value=4, step=1)
-    financial = st.slider("Stres Keuangan (1=Rendah, 5=Tinggi)", min_value=1, max_value=5, value=3, step=1)
+    financial = st.slider("Stres Keuangan (1=Rendah, 5=5", min_value=1, max_value=5, value=3, step=1)
     
     history = st.selectbox("Riwayat Mental Keluarga", UNIQUE_OPTS['Family History'])
     suicide = st.selectbox("Pernah terpikir Bunuh Diri?", UNIQUE_OPTS['Suicidal Thoughts']) 
@@ -151,18 +154,29 @@ if st.button("Prediksi Tingkat Risiko"):
         "Study Satisfaction": satisfaction,
     }
 
-    prediction = preprocess_and_predict(input_data)
+    prediction, predictions_proba = preprocess_and_predict(input_data)
 
     st.subheader("Hasil Prediksi")
     
-    # --- TANPA MANUAL OVERRIDE: MURNI PREDIKSI MODEL ---
+    # Ambil probabilitas Kelas 2 (Risiko Tertinggi)
+    try:
+        # Peringatan: Urutan kelas mungkin berbeda, tapi biasanya 0, 1, 2
+        proba_risiko_tinggi = predictions_proba[2] 
+    except IndexError:
+        proba_risiko_tinggi = 0.0 
+
+    
+    # Tampilkan Probabilitas
+    st.markdown(f"**Probabilitas Risiko Tertinggi (Kelas 2):** {proba_risiko_tinggi:.2f}")
+
+    # Tampilkan Klasifikasi Akhir (Biner)
     if prediction >= 1: 
         st.error("POTENSI/RISIKO DEPRESI")
         if prediction == 2:
-            st.warning("Risiko sangat tinggi menurut model.")
+            st.warning("Klasifikasi model: Risiko Sangat Tinggi.")
         else:
-            st.info("Risiko sedang menurut model.")
+            st.info("Klasifikasi model: Risiko Sedang.")
             
     else: # prediction == 0 
         st.success("TIDAK DEPRESI")
-        st.info("Risiko rendah menurut model.")
+        st.info("Klasifikasi model: Risiko Rendah.")
