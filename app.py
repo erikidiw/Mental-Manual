@@ -1,4 +1,4 @@
-# FILE: app.py (VERSI FINAL TERKOREKSI UNTUK SEMUA FITUR DAN CLEANING)
+# FILE: app.py (VERSI FINAL DENGAN SELECTBOX)
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -17,6 +17,7 @@ try:
         matches = [col for col in FEATURE_NAMES if partial_name in col]
         return matches[0] if matches else partial_name
 
+    # Menggunakan nama kolom yang terverifikasi dari Scaler
     COL_SUICIDAL = get_feature_name('suicidal thoughts')
     COL_SLEEP = get_feature_name('Sleep Duration')
     COL_FINANCIAL = get_feature_name('Financial Stress')
@@ -25,14 +26,30 @@ try:
     COL_ACADEMIC_PRESSURE = get_feature_name('Academic Pressure')
     COL_WORK_STUDY_HOURS = get_feature_name('Work/Study Hours')
     
-    # Ambil daftar kelas untuk SelectBox
+    # Ambil daftar kelas untuk SelectBox dari Target Encoder (TE) dan Label Encoder (LE)
+    # Target Encoder (TE) tidak menyimpan classes_ secara langsung, jadi kita ambil list unik dari data training City/Profession yang tersimpan di TE
+    # PENTING: te.mapping menyimpan kategori yang dilatih. Kita perlu mengekstraknya.
+    
+    # Ekstraksi Kategori City & Profession dari Target Encoder
+    # Diasumsikan Target Encoder dilatih pada data yang sudah di-'strip' dan dibersihkan.
+    # Karena TE tidak memiliki .classes_, kita menggunakan list unik dari kolom yang dilatih:
+    
+    # NOTE: Jika TE.mapping[0] menyimpan City dan TE.mapping[1] menyimpan Profession
+    TE_CITY_CATEGORIES = list(te.mapping[0]['mapping'].keys())
+    TE_PROFESSION_CATEGORIES = list(te.mapping[1]['mapping'].keys())
+
+    # Filter keluar nilai numerik yang mungkin terbawa saat TE dipanggil (jika ada).
+    TE_CITY_CATEGORIES = [c for c in TE_CITY_CATEGORIES if isinstance(c, str)]
+    TE_PROFESSION_CATEGORIES = [c for c in TE_PROFESSION_CATEGORIES if isinstance(c, str)]
+
+    # Kelas dari Label Encoder
     DEGREES = list(le_encoders['Degree'].classes_)
     DIETARY_HABITS = list(le_encoders['Dietary Habits'].classes_)
     GENDER_OPTIONS = list(le_encoders['Gender'].classes_) 
 
 except Exception as e:
     st.error(f"Terjadi kesalahan fatal saat memuat file PKL atau mendapatkan Feature Names: {e}")
-    st.warning("Pastikan Anda sudah membuat ulang file PKL dengan skrip create_pkl_files.py terbaru.")
+    st.warning("Pastikan Anda sudah membuat ulang file PKL dengan skrip create_pkl_files.py terbaru dan mengunggahnya.")
     st.stop()
 
 
@@ -41,23 +58,12 @@ SLEEP_MAP = {"Less than 5 hours": 1.0, "5-6 hours": 2.0, "7-8 hours": 3.0, "More
 FINANCIAL_MAP = {"1": 1.0, "2": 2.0, "3": 3.0, "4": 4.0, "5": 5.0, "?": 0.0} 
 SUICIDAL_MAP = {"No": 0.0, "Yes": 1.0}
 FAMILY_MAP = {"No": 0.0, "Yes": 1.0}
-
 FINANCIAL_OPTIONS = ["1", "2", "3", "4", "5", "?"] 
-CITY_DEFAULT = "Kalyan"
-PROFESSION_DEFAULT = "Student"
 
-# DAFTAR ANOMALI UNTUK CLEANING LIVE (HARUS SAMA DENGAN create_pkl_files.py)
-ANOMALIES_CITY = [
-    '3.0', 'Gaurav', 'Harsh', 'Harsha', 'Kibara', 'M.Com', 'M.Tech', 'ME',
-    'Mihir', 'Mira', 'Nalini', 'Nandini', 'Rashi', 'Reyansh', 'Saanvi', 
-    'Vaanya', 'Less Delhi', 'Less than 5 Kalyan'
-]
-# Diasumsikan Profession tidak memiliki anomali string non-profesi
 
 # --- 3. STREAMLIT APP LAYOUT ---
 st.set_page_config(layout="wide")
 st.title("Mental Health Predictor: UJI BOBOT SEMUA FITUR 🧠")
-st.markdown("Fitur bobot tinggi (Suicide, Academic Pressure) akan menyebabkan perubahan besar, sementara fitur bobot kecil (Gender, CGPA) akan menyebabkan perubahan kecil.")
 st.write("---")
 
 col_a, col_b, col_c = st.columns(3)
@@ -80,8 +86,11 @@ with col_b:
 with col_c:
     st.header("3. Riwayat & Lainnya")
     degree_input = st.selectbox("Degree", DEGREES)
-    profession_input = st.text_input("Profession", PROFESSION_DEFAULT)
-    city_input = st.text_input("City", CITY_DEFAULT)
+    
+    # DIGANTI KE SELECTBOX MENGGUNAKAN KATEGORI DARI TARGET ENCODER
+    profession_input = st.selectbox("Profession", TE_PROFESSION_CATEGORIES)
+    city_input = st.selectbox("City", TE_CITY_CATEGORIES)
+    
     financial_stress_input = st.selectbox("Financial Stress", FINANCIAL_OPTIONS) 
     suicidal_thoughts_input = st.selectbox("Pernah punya pikiran bunuh diri?", ["No", "Yes"]) 
     family_history_input = st.selectbox("Riwayat Keluarga Gangguan Mental", ["No", "Yes"])
@@ -111,16 +120,10 @@ if st.button("PREDIKSI DAN UJI PENGARUH"):
     }
     input_df = pd.DataFrame(data)
     
-    # --- LANGKAH CLEANING ANOMALI (HARUS DIJALANKAN SEBELUM ENCODING) ---
-    input_df['City'] = input_df['City'].astype(str).str.strip()
-    # Jika input City adalah anomali, ubah menjadi 'Other City'
-    if input_df['City'].iloc[0] in ANOMALIES_CITY:
-        input_df['City'] = 'Other City'
-    
-    input_df['Profession'] = input_df['Profession'].astype(str).str.strip()
-    # Anomali Profession tidak didefinisikan, jadi diasumsikan input valid
-    
     # 2. Lakukan Encoding (Mapping/Ordinal)
+    
+    # Tidak perlu lagi cleaning anomali City/Profession karena input sudah berupa selectbox (nilai terjamin valid)
+    
     input_df[COL_SLEEP] = input_df[COL_SLEEP].map(SLEEP_MAP).fillna(0.0)
     input_df[COL_FINANCIAL] = input_df[COL_FINANCIAL].map(FINANCIAL_MAP).fillna(0.0)
     input_df[COL_SUICIDAL] = input_df[COL_SUICIDAL].map(SUICIDAL_MAP).fillna(0.0)
@@ -133,7 +136,7 @@ if st.button("PREDIKSI DAN UJI PENGARUH"):
         input_df[col] = le.transform(input_df[col].astype(str))
             
     # c. Target Encoding
-    # Target Encoder yang dilatih pada data bersih akan menangani 'Other City' dan 'Student' (default)
+    # Nilai input City/Profession adalah string yang valid dan dapat di-transform
     input_df[['City', 'Profession']] = te.transform(input_df[['City', 'Profession']])
     
     # d. Scaling 
