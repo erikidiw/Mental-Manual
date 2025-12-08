@@ -4,8 +4,27 @@ import joblib
 from category_encoders.target_encoder import TargetEncoder
 import numpy as np 
 
-# [Kode CustomOrdinalMapper, Load Artifacts, Preprocessing & Prediction Function]
-# ... (Kode yang sama) ...
+# ==========================
+# 🔧 Custom Preprocessing Classes
+# ==========================
+class CustomOrdinalMapper:
+    def __init__(self, mappings):
+        if isinstance(mappings, list):
+            self.mappings = {col: map_dict for col, map_dict in mappings}
+        else:
+            self.mappings = mappings
+            
+        self.cols = list(self.mappings.keys())
+        
+    def fit(self, X, y=None):
+        return self
+        
+    def transform(self, X):
+        X_copy = X.copy()
+        for col, mapping in self.mappings.items():
+            if col in X_copy.columns:
+                X_copy[col] = X_copy[col].map(mapping).fillna(0).astype(float)
+        return X_copy[self.cols]
 
 
 # ==========================
