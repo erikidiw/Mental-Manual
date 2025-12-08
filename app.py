@@ -155,14 +155,14 @@ if st.button("Prediksi Tingkat Risiko"):
 
     st.subheader("Hasil Prediksi")
     
-    # --- TANPA SAFETY OVERRIDE: MURNI PREDIKSI MODEL ---
+    # --- TANPA MANUAL OVERRIDE ---
     if prediction >= 1: 
         st.error("🔥 **POTENSI/RISIKO DEPRESI**")
         if prediction == 2:
-            st.warning("Risiko sangat tinggi menurut model. Konsultasi dan tindakan segera disarankan.")
+            st.warning("Risiko sangat tinggi menurut model.")
         else:
-            st.info("Risiko sedang menurut model. Disarankan mencari dukungan konseling.")
+            st.info("Risiko sedang menurut model.")
             
     else: # prediction == 0 
         st.success("✅ **TIDAK DEPRESI**")
-        st.info("Risiko rendah menurut model. Pertahankan pola hidup seimbang.")
+        st.info("Risiko rendah menurut model.")
