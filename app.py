@@ -1,4 +1,4 @@
-# FILE: app.py (Perubahan Slider ke Integer)
+# FILE: app.py (VERSI FINAL TERKOREKSI UNTUK SEMUA FITUR DAN CLEANING)
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -25,6 +25,7 @@ try:
     COL_ACADEMIC_PRESSURE = get_feature_name('Academic Pressure')
     COL_WORK_STUDY_HOURS = get_feature_name('Work/Study Hours')
     
+    # Ambil daftar kelas untuk SelectBox
     DEGREES = list(le_encoders['Degree'].classes_)
     DIETARY_HABITS = list(le_encoders['Dietary Habits'].classes_)
     GENDER_OPTIONS = list(le_encoders['Gender'].classes_) 
@@ -45,6 +46,13 @@ FINANCIAL_OPTIONS = ["1", "2", "3", "4", "5", "?"]
 CITY_DEFAULT = "Kalyan"
 PROFESSION_DEFAULT = "Student"
 
+# DAFTAR ANOMALI UNTUK CLEANING LIVE (HARUS SAMA DENGAN create_pkl_files.py)
+ANOMALIES_CITY = [
+    '3.0', 'Gaurav', 'Harsh', 'Harsha', 'Kibara', 'M.Com', 'M.Tech', 'ME',
+    'Mihir', 'Mira', 'Nalini', 'Nandini', 'Rashi', 'Reyansh', 'Saanvi', 
+    'Vaanya', 'Less Delhi', 'Less than 5 Kalyan'
+]
+# Diasumsikan Profession tidak memiliki anomali string non-profesi
 
 # --- 3. STREAMLIT APP LAYOUT ---
 st.set_page_config(layout="wide")
@@ -59,19 +67,12 @@ with col_a:
     gender_input = st.selectbox("Gender", GENDER_OPTIONS)
     age = st.slider("Age (Usia)", 18, 60, 25)
     cgpa = st.slider("CGPA (Skala 0-10)", 0.0, 10.0, 7.5, 0.01)
-    
-    # DIUBAH KE INTEGER DENGAN STEP=1 DAN VALUE DEFAULT INTEGER
     academic_pressure = st.slider("Academic Pressure", 0, 5, 3, step=1) 
 
 with col_b:
     st.header("2. Gaya Hidup & Stres")
-    
-    # DIUBAH KE INTEGER DENGAN STEP=1 DAN VALUE DEFAULT INTEGER
     work_study_hours = st.slider("Work/Study Hours (Jam/Hari)", 0, 12, 8, step=1)
-    
-    # DIUBAH KE INTEGER DENGAN STEP=1 DAN VALUE DEFAULT INTEGER
     study_satisfaction = st.slider("Study Satisfaction", 0, 5, 3, step=1)
-    
     sleep_duration_input = st.selectbox("Sleep Duration", list(SLEEP_MAP.keys()))
     dietary_habits_input = st.selectbox("Dietary Habits", DIETARY_HABITS)
 
@@ -90,25 +91,34 @@ st.write("---")
 
 # --- 4. PREDICTION LOGIC ---
 
-if st.button("PREDIKSI DAN DEBUG"):
-    # 1. Kumpulkan data input dengan KUNCI yang diambil dari Scaler
+if st.button("PREDIKSI DAN UJI PENGARUH"):
+    # 1. Kumpulkan data input
     data = {
         'Gender': [gender_input], 
         'Age': [age], 
         'City': [city_input], 
         'Profession': [profession_input],
-        COL_ACADEMIC_PRESSURE: [float(academic_pressure)], # Konversi kembali ke float untuk model
+        COL_ACADEMIC_PRESSURE: [float(academic_pressure)], 
         'CGPA': [cgpa], 
-        COL_STUDY_SAT: [float(study_satisfaction)], # Konversi kembali ke float untuk model
+        COL_STUDY_SAT: [float(study_satisfaction)],
         COL_SLEEP: [sleep_duration_input], 
         'Dietary Habits': [dietary_habits_input], 
         'Degree': [degree_input],
         COL_SUICIDAL: [suicidal_thoughts_input], 
-        COL_WORK_STUDY_HOURS: [float(work_study_hours)], # Konversi kembali ke float untuk model
+        COL_WORK_STUDY_HOURS: [float(work_study_hours)], 
         COL_FINANCIAL: [financial_stress_input], 
         COL_FAMILY: [family_history_input]
     }
     input_df = pd.DataFrame(data)
+    
+    # --- LANGKAH CLEANING ANOMALI (HARUS DIJALANKAN SEBELUM ENCODING) ---
+    input_df['City'] = input_df['City'].astype(str).str.strip()
+    # Jika input City adalah anomali, ubah menjadi 'Other City'
+    if input_df['City'].iloc[0] in ANOMALIES_CITY:
+        input_df['City'] = 'Other City'
+    
+    input_df['Profession'] = input_df['Profession'].astype(str).str.strip()
+    # Anomali Profession tidak didefinisikan, jadi diasumsikan input valid
     
     # 2. Lakukan Encoding (Mapping/Ordinal)
     input_df[COL_SLEEP] = input_df[COL_SLEEP].map(SLEEP_MAP).fillna(0.0)
@@ -123,9 +133,10 @@ if st.button("PREDIKSI DAN DEBUG"):
         input_df[col] = le.transform(input_df[col].astype(str))
             
     # c. Target Encoding
+    # Target Encoder yang dilatih pada data bersih akan menangani 'Other City' dan 'Student' (default)
     input_df[['City', 'Profession']] = te.transform(input_df[['City', 'Profession']])
     
-    # d. Scaling (Menggunakan urutan kolom yang pasti benar dari Scaler)
+    # d. Scaling 
     input_scaled = scaler.transform(input_df[FEATURE_NAMES])
 
     # 3. Prediksi
