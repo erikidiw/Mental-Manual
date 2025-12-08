@@ -42,10 +42,10 @@ try:
     feature_cols = artifacts['feature_cols']
     UNIQUE_OPTS = artifacts['unique_options']
     
-    st.success("Model Ensemble (Voting Classifier) berhasil dimuat.")
+    st.success("Model Gradient Boosting berhasil dimuat.")
     
 except Exception as e:
-    st.error(f"Gagal memuat artifacts. Pastikan 'pipeline_artifacts.pkl' sudah dibuat: {e}")
+    st.error(f"Gagal memuat artifacts. Pastikan 'pipeline_artifacts.pkl' sudah dibuat dengan Gradient Boosting: {e}")
     st.stop()
 
 
@@ -96,7 +96,7 @@ def preprocess_and_predict(input_data):
 # 🧠 STREAMLIT UI
 # ==========================
 
-st.title("Sistem Prediksi Risiko Depresi Mahasiswa (Ensemble Model)")
+st.title("Sistem Prediksi Risiko Depresi Mahasiswa (Gradient Boosting)")
 st.write("Skor risiko ditentukan sepenuhnya oleh bobot yang dipelajari model.")
 
 col1, col2, col3 = st.columns(3)
@@ -155,14 +155,14 @@ if st.button("Prediksi Tingkat Risiko"):
 
     st.subheader("Hasil Prediksi")
     
-    # --- TANPA MANUAL OVERRIDE ---
+    # --- TANPA MANUAL OVERRIDE: MURNI PREDIKSI MODEL ---
     if prediction >= 1: 
-        st.error("🔥 **POTENSI/RISIKO DEPRESI**")
+        st.error("POTENSI/RISIKO DEPRESI")
         if prediction == 2:
             st.warning("Risiko sangat tinggi menurut model.")
         else:
             st.info("Risiko sedang menurut model.")
             
     else: # prediction == 0 
-        st.success("✅ **TIDAK DEPRESI**")
+        st.success("TIDAK DEPRESI")
         st.info("Risiko rendah menurut model.")
