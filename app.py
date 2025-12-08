@@ -42,10 +42,10 @@ try:
     feature_cols = artifacts['feature_cols']
     UNIQUE_OPTS = artifacts['unique_options']
     
-    st.success("Model Gradient Boosting dan Preprocessor berhasil dimuat.")
+    st.success("Model Ensemble (Voting Classifier) berhasil dimuat.")
     
 except Exception as e:
-    st.error(f"Gagal memuat artifacts. Pastikan 'pipeline_artifacts.pkl' sudah dibuat ulang dengan Gradient Boosting: {e}")
+    st.error(f"Gagal memuat artifacts. Pastikan 'pipeline_artifacts.pkl' sudah dibuat: {e}")
     st.stop()
 
 
@@ -96,8 +96,8 @@ def preprocess_and_predict(input_data):
 # 🧠 STREAMLIT UI
 # ==========================
 
-st.title("Sistem Prediksi Risiko Depresi Mahasiswa (Gradient Boosting)")
-st.write("Masukkan data kamu. Lalu tekan tombol prediksi di bawah.")
+st.title("Sistem Prediksi Risiko Depresi Mahasiswa (Ensemble Model)")
+st.write("Skor risiko ditentukan sepenuhnya oleh bobot yang dipelajari model.")
 
 col1, col2, col3 = st.columns(3)
 
@@ -155,14 +155,8 @@ if st.button("Prediksi Tingkat Risiko"):
 
     st.subheader("Hasil Prediksi")
     
-    # --- SAFETY OVERRIDE (MEMPERTAHANKAN BOBOT TERTINGGI KRITIS) ---
-    if suicide == 'Yes':
-        st.error("⚠️ **RISIKO KRITIS: DEPRESI**")
-        st.write("Jawaban 'Pernah terpikir Bunuh Diri?' diutamakan sebagai faktor bobot tertinggi.")
-        st.warning("Segera cari bantuan profesional.")
-    
-    # Logika output BINER berdasarkan prediksi model (0, 1, 2)
-    elif prediction >= 1: 
+    # --- TANPA SAFETY OVERRIDE: MURNI PREDIKSI MODEL ---
+    if prediction >= 1: 
         st.error("🔥 **POTENSI/RISIKO DEPRESI**")
         if prediction == 2:
             st.warning("Risiko sangat tinggi menurut model. Konsultasi dan tindakan segera disarankan.")
