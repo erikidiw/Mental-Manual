@@ -4,27 +4,8 @@ import joblib
 from category_encoders.target_encoder import TargetEncoder
 import numpy as np 
 
-# ==========================
-# 🔧 Custom Preprocessing Classes
-# ==========================
-class CustomOrdinalMapper:
-    def __init__(self, mappings):
-        if isinstance(mappings, list):
-            self.mappings = {col: map_dict for col, map_dict in mappings}
-        else:
-            self.mappings = mappings
-            
-        self.cols = list(self.mappings.keys())
-        
-    def fit(self, X, y=None):
-        return self
-        
-    def transform(self, X):
-        X_copy = X.copy()
-        for col, mapping in self.mappings.items():
-            if col in X_copy.columns:
-                X_copy[col] = X_copy[col].map(mapping).fillna(0).astype(float)
-        return X_copy[self.cols]
+# [Kode CustomOrdinalMapper, Load Artifacts, Preprocessing & Prediction Function]
+# ... (Kode yang sama) ...
 
 
 # ==========================
@@ -42,7 +23,7 @@ try:
     feature_cols = artifacts['feature_cols']
     UNIQUE_OPTS = artifacts['unique_options']
     
-    st.success("Model Ensemble (Voting Classifier) berhasil dimuat.")
+    st.success("Model Gradient Boosting berhasil dimuat.")
     
 except Exception as e:
     st.error(f"Gagal memuat artifacts. Pastikan 'pipeline_artifacts.pkl' sudah dibuat: {e}")
@@ -88,9 +69,8 @@ def preprocess_and_predict(input_data):
     # Konversi ke float
     df_processed = df_single.apply(pd.to_numeric, errors='coerce').fillna(0).astype(float)
     
-    # Memprediksi probabilitas untuk semua kelas (0, 1, 2)
     predictions_proba = pipeline.predict_proba(df_processed)[0]
-    prediction = np.argmax(predictions_proba) # Mempertahankan prediksi kelas utama
+    prediction = np.argmax(predictions_proba)
     
     return prediction, predictions_proba
 
@@ -99,8 +79,8 @@ def preprocess_and_predict(input_data):
 # 🧠 STREAMLIT UI
 # ==========================
 
-st.title("Sistem Prediksi Risiko Depresi Mahasiswa (Probabilitas Risiko)")
-st.write("Bobot setiap pertanyaan memengaruhi probabilitas prediksi.")
+st.title("Sistem Prediksi Risiko Depresi Mahasiswa (Gradient Boosting)")
+st.write("Skor risiko ditentukan sepenuhnya oleh bobot yang dipelajari model.")
 
 col1, col2, col3 = st.columns(3)
 
@@ -125,7 +105,7 @@ with col3:
     st.subheader("Faktor Risiko Mental")
     academic = st.slider("Tekanan Akademik (1=Rendah, 5=Tinggi)", min_value=1, max_value=5, value=3, step=1)
     satisfaction = st.slider("Kepuasan Belajar (1=Rendah, 5=Tinggi)", min_value=1, max_value=5, value=4, step=1)
-    financial = st.slider("Stres Keuangan (1=Rendah, 5=5", min_value=1, max_value=5, value=3, step=1)
+    financial = st.slider("Stres Keuangan (1=Rendah, 5=Tinggi)", min_value=1, max_value=5, value=3, step=1)
     
     history = st.selectbox("Riwayat Mental Keluarga", UNIQUE_OPTS['Family History'])
     suicide = st.selectbox("Pernah terpikir Bunuh Diri?", UNIQUE_OPTS['Suicidal Thoughts']) 
@@ -160,13 +140,11 @@ if st.button("Prediksi Tingkat Risiko"):
     
     # Ambil probabilitas Kelas 2 (Risiko Tertinggi)
     try:
-        # Peringatan: Urutan kelas mungkin berbeda, tapi biasanya 0, 1, 2
         proba_risiko_tinggi = predictions_proba[2] 
     except IndexError:
         proba_risiko_tinggi = 0.0 
 
     
-    # Tampilkan Probabilitas
     st.markdown(f"**Probabilitas Risiko Tertinggi (Kelas 2):** {proba_risiko_tinggi:.2f}")
 
     # Tampilkan Klasifikasi Akhir (Biner)
