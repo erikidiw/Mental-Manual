@@ -1,4 +1,4 @@
-# FILE: app.py
+# FILE: app.py (Revisi Final Bobot Fitur)
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -6,19 +6,15 @@ import joblib
 
 # --- 1. LOAD ASSETS & GET FEATURE NAMES ---
 try:
-    # Memuat semua berkas PKL
     best_gb = joblib.load('gb_model.pkl')
     scaler = joblib.load('scaler.pkl')
-    # Memuat dictionary Label Encoders
     le_encoders = joblib.load('label_encoder.pkl') 
     te = joblib.load('target_encoder.pkl')
     
-    # Ambil daftar nama kolom yang benar dari scaler untuk konsistensi
     FEATURE_NAMES = list(scaler.feature_names_in_)
     
     # Ambil nama kolom yang kompleks dari daftar yang dipelajari Scaler
     def get_feature_name(partial_name):
-        # Fungsi utilitas untuk mendapatkan nama kolom secara aman
         matches = [col for col in FEATURE_NAMES if partial_name in col]
         return matches[0] if matches else partial_name
 
@@ -28,16 +24,12 @@ try:
     COL_FAMILY = get_feature_name('Family History')
     COL_STUDY_SAT = get_feature_name('Study Satisfaction')
     
-    # Ambil daftar kelas untuk SelectBox dari dictionary Label Encoder
     DEGREES = list(le_encoders['Degree'].classes_)
     DIETARY_HABITS = list(le_encoders['Dietary Habits'].classes_)
     GENDER_OPTIONS = list(le_encoders['Gender'].classes_) 
 
-except KeyError as e:
-    st.error(f"Error: Kunci '{e}' hilang di file 'label_encoder.pkl'. Mohon buat ulang file PKL.")
-    st.stop()
 except Exception as e:
-    st.error(f"Terjadi kesalahan fatal saat memuat file PKL: {e}")
+    st.error(f"Terjadi kesalahan fatal saat memuat file PKL atau mendapatkan Feature Names: {e}")
     st.warning("Pastikan Anda sudah membuat ulang file PKL dengan skrip create_pkl_files.py terbaru dan mengunggahnya.")
     st.stop()
 
@@ -47,7 +39,6 @@ SLEEP_MAP = {"Less than 5 hours": 1.0, "5-6 hours": 2.0, "7-8 hours": 3.0, "More
 FINANCIAL_MAP = {"1": 1.0, "2": 2.0, "3": 3.0, "4": 4.0, "5": 5.0, "?": 0.0} 
 SUICIDAL_MAP = {"No": 0.0, "Yes": 1.0}
 FAMILY_MAP = {"No": 0.0, "Yes": 1.0}
-
 FINANCIAL_OPTIONS = ["1", "2", "3", "4", "5", "?"] 
 CITY_DEFAULT = "Kalyan"
 PROFESSION_DEFAULT = "Student"
@@ -120,24 +111,14 @@ if st.button("Prediksi Potensi Depresi"):
     label_cols_transform = ['Gender', 'Dietary Habits', 'Degree']
     for col in label_cols_transform:
         le = le_encoders[col] 
-        try:
-            input_df[col] = le.transform(input_df[col].astype(str))
-        except ValueError:
-            st.error(f"Error: Kategori input '{input_df[col].iloc[0]}' pada kolom '{col}' tidak dikenal.")
-            st.stop()
+        input_df[col] = le.transform(input_df[col].astype(str))
             
     # c. Target Encoding
     input_df[['City', 'Profession']] = te.transform(input_df[['City', 'Profession']])
     
     # d. Scaling (Menggunakan urutan kolom yang pasti benar dari Scaler)
-    try:
-        input_scaled = scaler.transform(input_df[FEATURE_NAMES])
-    except KeyError as e:
-        st.error(f"FATAL KEY ERROR: Kolom {e} tidak ditemukan di DataFrame input. Cek kembali nama kolom di .pkl.")
-        st.warning(f"Kolom yang diharapkan Scaler: {FEATURE_NAMES}")
-        st.warning(f"Kolom yang ada di Input: {list(input_df.columns)}")
-        st.stop()
-
+    # Ini adalah baris kunci untuk mengatasi KeyError karena urutan dan nama kolom sama persis
+    input_scaled = scaler.transform(input_df[FEATURE_NAMES])
 
     # 3. Prediksi
     prediction = best_gb.predict(input_scaled)[0]
