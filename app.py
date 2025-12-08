@@ -1,4 +1,4 @@
-# FILE: app.py (VERSI FINAL DENGAN SELECTBOX)
+# FILE: app.py (VERSI FINAL DENGAN SELECTBOX DAN INTEGER INPUT)
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -26,19 +26,12 @@ try:
     COL_ACADEMIC_PRESSURE = get_feature_name('Academic Pressure')
     COL_WORK_STUDY_HOURS = get_feature_name('Work/Study Hours')
     
-    # Ambil daftar kelas untuk SelectBox dari Target Encoder (TE) dan Label Encoder (LE)
-    # Target Encoder (TE) tidak menyimpan classes_ secara langsung, jadi kita ambil list unik dari data training City/Profession yang tersimpan di TE
-    # PENTING: te.mapping menyimpan kategori yang dilatih. Kita perlu mengekstraknya.
-    
     # Ekstraksi Kategori City & Profession dari Target Encoder
     # Diasumsikan Target Encoder dilatih pada data yang sudah di-'strip' dan dibersihkan.
-    # Karena TE tidak memiliki .classes_, kita menggunakan list unik dari kolom yang dilatih:
-    
-    # NOTE: Jika TE.mapping[0] menyimpan City dan TE.mapping[1] menyimpan Profession
     TE_CITY_CATEGORIES = list(te.mapping[0]['mapping'].keys())
     TE_PROFESSION_CATEGORIES = list(te.mapping[1]['mapping'].keys())
 
-    # Filter keluar nilai numerik yang mungkin terbawa saat TE dipanggil (jika ada).
+    # Filter nilai non-string (untuk keamanan)
     TE_CITY_CATEGORIES = [c for c in TE_CITY_CATEGORIES if isinstance(c, str)]
     TE_PROFESSION_CATEGORIES = [c for c in TE_PROFESSION_CATEGORIES if isinstance(c, str)]
 
@@ -64,6 +57,7 @@ FINANCIAL_OPTIONS = ["1", "2", "3", "4", "5", "?"]
 # --- 3. STREAMLIT APP LAYOUT ---
 st.set_page_config(layout="wide")
 st.title("Mental Health Predictor: UJI BOBOT SEMUA FITUR 🧠")
+st.markdown("Fitur bobot tinggi (Suicide, Academic Pressure) akan menyebabkan perubahan besar. Slider input penting kini diatur ke bilangan bulat.")
 st.write("---")
 
 col_a, col_b, col_c = st.columns(3)
@@ -73,12 +67,16 @@ with col_a:
     gender_input = st.selectbox("Gender", GENDER_OPTIONS)
     age = st.slider("Age (Usia)", 18, 60, 25)
     cgpa = st.slider("CGPA (Skala 0-10)", 0.0, 10.0, 7.5, 0.01)
+    # INTEGER SLIDER
     academic_pressure = st.slider("Academic Pressure", 0, 5, 3, step=1) 
 
 with col_b:
     st.header("2. Gaya Hidup & Stres")
+    # INTEGER SLIDER
     work_study_hours = st.slider("Work/Study Hours (Jam/Hari)", 0, 12, 8, step=1)
+    # INTEGER SLIDER
     study_satisfaction = st.slider("Study Satisfaction", 0, 5, 3, step=1)
+    
     sleep_duration_input = st.selectbox("Sleep Duration", list(SLEEP_MAP.keys()))
     dietary_habits_input = st.selectbox("Dietary Habits", DIETARY_HABITS)
 
@@ -87,8 +85,9 @@ with col_c:
     st.header("3. Riwayat & Lainnya")
     degree_input = st.selectbox("Degree", DEGREES)
     
-    # DIGANTI KE SELECTBOX MENGGUNAKAN KATEGORI DARI TARGET ENCODER
+    # SELECTBOX DARI TE
     profession_input = st.selectbox("Profession", TE_PROFESSION_CATEGORIES)
+    # SELECTBOX DARI TE
     city_input = st.selectbox("City", TE_CITY_CATEGORIES)
     
     financial_stress_input = st.selectbox("Financial Stress", FINANCIAL_OPTIONS) 
@@ -121,8 +120,7 @@ if st.button("PREDIKSI DAN UJI PENGARUH"):
     input_df = pd.DataFrame(data)
     
     # 2. Lakukan Encoding (Mapping/Ordinal)
-    
-    # Tidak perlu lagi cleaning anomali City/Profession karena input sudah berupa selectbox (nilai terjamin valid)
+    # Tidak perlu cleaning anomali City/Profession karena selectbox menjamin input valid
     
     input_df[COL_SLEEP] = input_df[COL_SLEEP].map(SLEEP_MAP).fillna(0.0)
     input_df[COL_FINANCIAL] = input_df[COL_FINANCIAL].map(FINANCIAL_MAP).fillna(0.0)
@@ -136,7 +134,6 @@ if st.button("PREDIKSI DAN UJI PENGARUH"):
         input_df[col] = le.transform(input_df[col].astype(str))
             
     # c. Target Encoding
-    # Nilai input City/Profession adalah string yang valid dan dapat di-transform
     input_df[['City', 'Profession']] = te.transform(input_df[['City', 'Profession']])
     
     # d. Scaling 
