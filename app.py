@@ -58,7 +58,7 @@ try:
     # Daftar ini harus sesuai dengan output df_cleaned di create_pkl_files.py
     CITY_OPTIONS = ['Visakhapatnam', 'Bangalore', 'Srinagar', 'Varanasi', 'Jaipur', 'Pune', 'Kolkata', 
                     'Chennai', 'Mumbai', 'Delhi', 'Hyderabad', 'Ahmedabad', 'Surat', 'Lucknow', 'Other City'] 
-    PROFESSION_OPTIONS = ['Student', 'Working Professional', 'Unemployed', 'Other Profession'] # Disesuaikan
+    PROFESSION_OPTIONS = ['Student', 'Digital Marketer', 'Teacher', 'Architect', 'Civil Engineer', 'Content Writer', 'Educational Consultant', 'UX/UI Designer', 'Chef', 'Doctor', 'Entrepreneur', 'Lawyer', 'Manager', 'Pharmacist']
 
     
 except Exception as e:
@@ -126,7 +126,7 @@ def preprocess_and_predict(input_df):
 
 # --- 3. STREAMLIT APP LAYOUT ---
 st.set_page_config(layout="wide")
-st.title("Mental Health Predictor: UJI BOBOT SEMUA FITUR 🧠")
+st.title("Mental Health Predictor: UJI BOBOT SEMUA FITUR")
 st.markdown("Model menggunakan Gradient Boosting.")
 st.write("---")
 
