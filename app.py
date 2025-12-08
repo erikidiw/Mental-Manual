@@ -1,4 +1,4 @@
-# FILE: app.py (VERSI FINAL TERKOREKSI UNTUK KEYERRORS)
+# FILE: app.py (VERSI KOREKSI UNTUK TypeError)
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -9,7 +9,7 @@ COL_SUICIDAL = 'Have you ever had suicidal thoughts?'
 COL_SLEEP = 'Sleep Duration'
 COL_FINANCIAL = 'Financial Stress'
 COL_FAMILY = 'Family History of Mental Illness'
-COL_STUDY_SAT = 'Study Satisfaction' # Ditambahkan untuk Study Satisfaction
+COL_STUDY_SAT = 'Study Satisfaction' 
 
 # --- 1. LOAD ASSETS ---
 try:
@@ -19,12 +19,26 @@ try:
     le_encoders = joblib.load('label_encoder.pkl') 
     te = joblib.load('target_encoder.pkl')
     
+    # TITIK KRITIS: MENGAKSES OBJEK DARI DICTIONARY
+    DEGREES = list(le_encoders['Degree'].classes_)
+    DIETARY_HABITS = list(le_encoders['Dietary Habits'].classes_)
+    GENDER_OPTIONS = list(le_encoders['Gender'].classes_) 
+
 except FileNotFoundError:
     st.error("Error: Berkas model (.pkl) tidak ditemukan. Mohon pastikan semua 4 berkas PKL sudah diunggah.")
     st.stop()
-except KeyError:
-    st.error("Error: Struktur file 'label_encoder.pkl' mungkin salah. Pastikan file dibuat dengan skrip 'create_pkl_files.py' terbaru.")
+except KeyError as e:
+    # Menangani jika kunci Degree, Gender, atau Dietary Habits hilang
+    st.error(f"Error: Kunci {e} hilang di file 'label_encoder.pkl'. Mohon buat ulang file PKL.")
     st.stop()
+except AttributeError:
+    # Menangani jika objek yang dimuat BUKAN LabelEncoder (e.g., jika isinya None atau tipe lain)
+    st.error("Error: Objek yang disimpan di 'label_encoder.pkl' mungkin rusak atau bukan LabelEncoder.")
+    st.stop()
+except Exception as e:
+    st.error(f"Terjadi kesalahan saat memuat file PKL: {e}")
+    st.stop()
+
 
 # --- 2. MAPPINGS & DEFAULTS ---
 SLEEP_MAP = {"Less than 5 hours": 1.0, "5-6 hours": 2.0, "7-8 hours": 3.0, "More than 8 hours": 4.0, "Others": 0.0}
@@ -32,9 +46,6 @@ FINANCIAL_MAP = {"1": 1.0, "2": 2.0, "3": 3.0, "4": 4.0, "5": 5.0, "?": 0.0}
 SUICIDAL_MAP = {"No": 0.0, "Yes": 1.0}
 FAMILY_MAP = {"No": 0.0, "Yes": 1.0}
 
-DEGREES = list(le_encoders['Degree'].classes_)
-DIETARY_HABITS = list(le_encoders['Dietary Habits'].classes_)
-GENDER_OPTIONS = list(le_encoders['Gender'].classes_) 
 FINANCIAL_OPTIONS = ["1", "2", "3", "4", "5", "?"] 
 CITY_DEFAULT = "Kalyan"
 PROFESSION_DEFAULT = "Student"
@@ -80,11 +91,20 @@ st.write("---")
 if st.button("Prediksi Potensi Depresi"):
     # 1. Kumpulkan data input dengan NAMA KOLOM YANG AKURAT
     data = {
-        'Gender': [gender_input], 'Age': [age], 'City': [city_input], 'Profession': [profession_input],
-        'Academic Pressure': [academic_pressure], 'CGPA': [cgpa], COL_STUDY_SAT: [study_satisfaction],
-        COL_SLEEP: [sleep_duration_input], 'Dietary Habits': [dietary_habits_input], 'Degree': [degree_input],
-        COL_SUICIDAL: [suicidal_thoughts_input], 'Work/Study Hours': [work_study_hours], 
-        COL_FINANCIAL: [financial_stress_input], COL_FAMILY: [family_history_input]
+        'Gender': [gender_input], 
+        'Age': [age], 
+        'City': [city_input], 
+        'Profession': [profession_input],
+        'Academic Pressure': [academic_pressure], 
+        'CGPA': [cgpa], 
+        COL_STUDY_SAT: [study_satisfaction],
+        COL_SLEEP: [sleep_duration_input], 
+        'Dietary Habits': [dietary_habits_input], 
+        'Degree': [degree_input],
+        COL_SUICIDAL: [suicidal_thoughts_input], 
+        'Work/Study Hours': [work_study_hours], 
+        COL_FINANCIAL: [financial_stress_input], 
+        COL_FAMILY: [family_history_input]
     }
     input_df = pd.DataFrame(data)
     
@@ -109,12 +129,11 @@ if st.button("Prediksi Potensi Depresi"):
     # c. Target Encoding
     input_df[['City', 'Profession']] = te.transform(input_df[['City', 'Profession']])
     
-    # d. Scaling (Titik kritis, menggunakan try/except untuk mendiagnosa KeyError)
+    # d. Scaling
     feature_order = scaler.feature_names_in_
     try:
         input_scaled = scaler.transform(input_df[feature_order])
     except KeyError as e:
-        # Menampilkan nama kolom yang tidak ditemukan
         st.error(f"FATAL KEY ERROR: Kolom {e} tidak ditemukan di DataFrame input.")
         st.warning(f"Kolom yang diharapkan Scaler: {list(feature_order)}")
         st.warning(f"Kolom yang ada di Input: {list(input_df.columns)}")
