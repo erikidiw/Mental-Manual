@@ -1,4 +1,4 @@
-# FILE: app.py (VERSI DEBUGGING NILAI INPUT)
+# FILE: app.py (VERSI FINAL TERKOREKSI UNTUK SEMUA FITUR DAN KEYERROR)
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -13,10 +13,12 @@ try:
     
     FEATURE_NAMES = list(scaler.feature_names_in_)
     
+    # Ambil nama kolom yang kompleks dari daftar yang dipelajari Scaler
     def get_feature_name(partial_name):
         matches = [col for col in FEATURE_NAMES if partial_name in col]
         return matches[0] if matches else partial_name
 
+    # Menggunakan nama kolom yang terverifikasi dari Scaler untuk INPUT/MAPPING:
     COL_SUICIDAL = get_feature_name('suicidal thoughts')
     COL_SLEEP = get_feature_name('Sleep Duration')
     COL_FINANCIAL = get_feature_name('Financial Stress')
@@ -25,12 +27,14 @@ try:
     COL_ACADEMIC_PRESSURE = get_feature_name('Academic Pressure')
     COL_WORK_STUDY_HOURS = get_feature_name('Work/Study Hours')
     
+    # Ambil daftar kelas untuk SelectBox dari dictionary Label Encoder
     DEGREES = list(le_encoders['Degree'].classes_)
     DIETARY_HABITS = list(le_encoders['Dietary Habits'].classes_)
     GENDER_OPTIONS = list(le_encoders['Gender'].classes_) 
 
 except Exception as e:
     st.error(f"Terjadi kesalahan fatal saat memuat file PKL atau mendapatkan Feature Names: {e}")
+    st.warning("Pastikan Anda sudah membuat ulang file PKL dengan skrip create_pkl_files.py terbaru dan mengunggahnya.")
     st.stop()
 
 
@@ -47,8 +51,8 @@ PROFESSION_DEFAULT = "Student"
 
 # --- 3. STREAMLIT APP LAYOUT ---
 st.set_page_config(layout="wide")
-st.title("Mental Health Predictor: UJI FUNGSI INPUT 🧠")
-st.markdown("Cek apakah nilai input Anda benar-benar sampai ke model sebagai angka.")
+st.title("Mental Health Predictor: UJI BOBOT SEMUA FITUR 🧠")
+st.markdown("Fitur bobot tinggi (Suicide, Academic Pressure) akan menyebabkan perubahan besar, sementara fitur bobot kecil (Gender, CGPA) akan menyebabkan perubahan kecil.")
 st.write("---")
 
 col_a, col_b, col_c = st.columns(3)
@@ -58,11 +62,11 @@ with col_a:
     gender_input = st.selectbox("Gender", GENDER_OPTIONS)
     age = st.slider("Age (Usia)", 18, 60, 25)
     cgpa = st.slider("CGPA (Skala 0-10)", 0.0, 10.0, 7.5, 0.01)
-    academic_pressure = st.slider("Academic Pressure", 0.0, 5.0, 3.0) # Fitur Bobot Tinggi
+    academic_pressure = st.slider("Academic Pressure", 0.0, 5.0, 3.0) # Bobot Tinggi
 
 with col_b:
     st.header("2. Gaya Hidup & Stres")
-    work_study_hours = st.slider("Work/Study Hours", 0.0, 12.0, 8.0)
+    work_study_hours = st.slider("Work/Study Hours", 0.0, 12.0, 8.0) # Bobot Menengah
     study_satisfaction = st.slider("Study Satisfaction", 0.0, 5.0, 3.0)
     sleep_duration_input = st.selectbox("Sleep Duration", list(SLEEP_MAP.keys()))
     dietary_habits_input = st.selectbox("Dietary Habits", DIETARY_HABITS)
@@ -73,8 +77,8 @@ with col_c:
     degree_input = st.selectbox("Degree", DEGREES)
     profession_input = st.text_input("Profession", PROFESSION_DEFAULT)
     city_input = st.text_input("City", CITY_DEFAULT)
-    financial_stress_input = st.selectbox("Financial Stress", FINANCIAL_OPTIONS) # Fitur yang diuji
-    suicidal_thoughts_input = st.selectbox("Pernah punya pikiran bunuh diri?", ["No", "Yes"]) # Fitur Bobot Tertinggi
+    financial_stress_input = st.selectbox("Financial Stress", FINANCIAL_OPTIONS) # Bobot Menengah
+    suicidal_thoughts_input = st.selectbox("Pernah punya pikiran bunuh diri?", ["No", "Yes"]) # Bobot Tertinggi
     family_history_input = st.selectbox("Riwayat Keluarga Gangguan Mental", ["No", "Yes"])
 
 
@@ -82,14 +86,23 @@ st.write("---")
 
 # --- 4. PREDICTION LOGIC ---
 
-if st.button("PREDIKSI DAN DEBUG"):
-    # 1. Kumpulkan data input
+if st.button("PREDIKSI & UJI PENGARUH"):
+    # 1. Kumpulkan data input dengan KUNCI yang diambil dari Scaler
     data = {
-        'Gender': [gender_input], 'Age': [age], 'City': [city_input], 'Profession': [profession_input],
-        COL_ACADEMIC_PRESSURE: [academic_pressure], 'CGPA': [cgpa], COL_STUDY_SAT: [study_satisfaction],
-        COL_SLEEP: [sleep_duration_input], 'Dietary Habits': [dietary_habits_input], 'Degree': [degree_input],
-        COL_SUICIDAL: [suicidal_thoughts_input], COL_WORK_STUDY_HOURS: [work_study_hours], 
-        COL_FINANCIAL: [financial_stress_input], COL_FAMILY: [family_history_input]
+        'Gender': [gender_input], 
+        'Age': [age], 
+        'City': [city_input], 
+        'Profession': [profession_input],
+        COL_ACADEMIC_PRESSURE: [academic_pressure], 
+        'CGPA': [cgpa], 
+        COL_STUDY_SAT: [study_satisfaction],
+        COL_SLEEP: [sleep_duration_input], 
+        'Dietary Habits': [dietary_habits_input], 
+        'Degree': [degree_input],
+        COL_SUICIDAL: [suicidal_thoughts_input], 
+        COL_WORK_STUDY_HOURS: [work_study_hours], 
+        COL_FINANCIAL: [financial_stress_input], 
+        COL_FAMILY: [family_history_input]
     }
     input_df = pd.DataFrame(data)
     
@@ -98,16 +111,6 @@ if st.button("PREDIKSI DAN DEBUG"):
     input_df[COL_FINANCIAL] = input_df[COL_FINANCIAL].map(FINANCIAL_MAP).fillna(0.0)
     input_df[COL_SUICIDAL] = input_df[COL_SUICIDAL].map(SUICIDAL_MAP).fillna(0.0)
     input_df[COL_FAMILY] = input_df[COL_FAMILY].map(FAMILY_MAP).fillna(0.0)
-    
-    # --- DEBUGGING CHECKPOINT ---
-    st.warning("--- DEBUG CHECKPOINT: NILAI SEBELUM SCALING ---")
-    st.info(f"Input UI Financial Stress: {financial_stress_input}")
-    st.info(f"Input UI Academic Pressure: {academic_pressure}")
-    st.info(f"Nilai Numerik Financial Stress (Masuk Model): {input_df[COL_FINANCIAL].iloc[0]}")
-    st.info(f"Nilai Numerik Academic Pressure (Masuk Model): {input_df[COL_ACADEMIC_PRESSURE].iloc[0]}")
-    st.write("Jika Financial Stress di atas 0, nilai ini seharusnya memengaruhi prediksi.")
-    st.write("---")
-    # --- END DEBUGGING CHECKPOINT ---
     
     # b. Label Encoding
     label_cols_transform = ['Gender', 'Dietary Habits', 'Degree']
@@ -118,7 +121,7 @@ if st.button("PREDIKSI DAN DEBUG"):
     # c. Target Encoding
     input_df[['City', 'Profession']] = te.transform(input_df[['City', 'Profession']])
     
-    # d. Scaling 
+    # d. Scaling (Menggunakan urutan kolom yang pasti benar dari Scaler)
     input_scaled = scaler.transform(input_df[FEATURE_NAMES])
 
     # 3. Prediksi
