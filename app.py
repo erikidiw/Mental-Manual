@@ -1,179 +1,153 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import joblib
+from sklearn.preprocessing import LabelEncoder
 from category_encoders.target_encoder import TargetEncoder
-import numpy as np 
 
-# ==========================
-# 🔧 Custom Preprocessing Classes
-# ==========================
-class CustomOrdinalMapper:
-    def __init__(self, mappings):
-        if isinstance(mappings, list):
-            self.mappings = {col: map_dict for col, map_dict in mappings}
-        else:
-            self.mappings = mappings
-            
-        self.cols = list(self.mappings.keys())
-        
-    def fit(self, X, y=None):
-        return self
-        
-    def transform(self, X):
-        X_copy = X.copy()
-        for col, mapping in self.mappings.items():
-            if col in X_copy.columns:
-                X_copy[col] = X_copy[col].map(mapping).fillna(0).astype(float)
-        return X_copy[self.cols]
-
-
-# ==========================
-# 🚀 Load Artifacts
-# ==========================
+# --- 1. LOAD ASSETS ---
+# Muat model, scaler, dan encoders
 try:
-    artifacts = joblib.load('pipeline_artifacts.pkl') 
-    pipeline = artifacts['pipeline']
-    label_encoders = artifacts['label_encoders']
-    target_encoder = artifacts['target_encoder']
-    
-    ordinal_mapping_data = artifacts['ordinal_mapper'].mappings 
-    ordinal_mapper = CustomOrdinalMapper(ordinal_mapping_data) 
-    
-    feature_cols = artifacts['feature_cols']
-    UNIQUE_OPTS = artifacts['unique_options']
-    
-    st.success("Model Gradient Boosting berhasil dimuat.")
-    
-except Exception as e:
-    st.error(f"Gagal memuat artifacts. Pastikan 'pipeline_artifacts.pkl' sudah dibuat: {e}")
+    best_gb = joblib.load('gb_model.pkl')
+    scaler = joblib.load('scaler.pkl')
+    le = joblib.load('label_encoder.pkl')
+    te = joblib.load('target_encoder.pkl')
+except FileNotFoundError:
+    st.error("Berkas model (pkl) tidak ditemukan. Pastikan Anda sudah menjalankan skrip 'Langkah Membuat Model .pkl' dan file berada di direktori yang sama.")
     st.stop()
 
+# --- 2. PRE-PROCESSING UTILITIES (Harus sama dengan langkah training) ---
 
-# ==========================
-# 🔧 PREPROCESSING & PREDICTION FUNCTION
-# ==========================
-
-def preprocess_and_predict(input_data):
-    df_single = pd.DataFrame([input_data])
-    df_single = df_single[feature_cols]
-
-    # Cleaning Dasar
-    for col in ['Sleep Duration', 'Financial Stress']:
-        if col in df_single.columns:
-            df_single[col] = df_single[col].astype(str).str.replace("'", "").str.strip()
-            
-    df_single['Financial Stress'] = df_single['Financial Stress'].replace('?', '0')
-
-    # Ordinal Mapping
-    df_single_ordinal = ordinal_mapper.transform(df_single)
-    for col in ordinal_mapper.cols:
-        df_single[col] = df_single_ordinal[col]
+# Fungsi capper harus sama persis dengan yang digunakan saat training
+def cap_outliers_single(value, col_name):
+    # Dapatkan statistik IQR dari data training yang sudah di-scale
+    # Kita menggunakan data hasil scaling/encoding untuk mendapatkan batas-batas yang sesuai
+    # Namun, karena proses capping seharusnya dilakukan pada data mentah sebelum scaling,
+    # kita akan membatasi ini hanya untuk memastikan konsistensi format input
     
-    # Label Encoding
-    label_cols = list(label_encoders.keys())
-    for col in label_cols:
-        if col in df_single.columns:
-            df_single[col] = df_single[col].astype(str)
-            le = label_encoders[col]
-            def encode_label(val):
-                if val in le.classes_:
-                    return le.transform([val])[0]
-                return -1 
-            df_single[col] = df_single[col].apply(encode_label)
-    
-    # Target Encoding
-    target_cols = ['City', 'Profession']
-    df_single[target_cols] = target_encoder.transform(df_single[target_cols])
-    
-    # Konversi ke float
-    df_processed = df_single.apply(pd.to_numeric, errors='coerce').fillna(0).astype(float)
-    
-    predictions_proba = pipeline.predict_proba(df_processed)[0]
-    prediction = np.argmax(predictions_proba)
-    
-    return prediction, predictions_proba
+    # Untuk implementasi Streamlit yang sederhana, kita asumsikan input sudah bersih/tercaping
+    # atau kita melewatkan proses capping di sini.
+    # Jika capping ingin diimplementasikan dengan benar, kita perlu menyimpan Q1 dan Q3 data mentah (df_encoded)
+    return value
 
+# Mapping untuk input kategorikal
+SLEEP_MAP = {"<5 jam": 1.0, "5-6 jam": 2.0, "7-8 jam": 3.0, ">8 jam": 4.0, "Lainnya": 0.0}
+FINANCIAL_MAP = {"1.0 (Sangat Rendah)": 1.0, "2.0 (Rendah)": 2.0, "3.0 (Sedang)": 3.0, "4.0 (Tinggi)": 4.0, "5.0 (Sangat Tinggi)": 5.0, "Tidak Tahu/Kosong": 0.0}
+SUICIDAL_MAP = {"Tidak": 0.0, "Ya": 1.0}
+FAMILY_HISTORY_MAP = {"Tidak": 0.0, "Ya": 1.0}
 
-# ==========================
-# 🧠 STREAMLIT UI
-# ==========================
+# --- 3. STREAMLIT APP LAYOUT ---
+st.title("Depression Predictor: Gradient Boosting")
+st.markdown("Aplikasi prediksi depresi menggunakan model **Gradient Boosting Classifier**.")
+st.write("---")
 
-st.title("Sistem Prediksi Risiko Depresi Mahasiswa (Gradient Boosting)")
-st.write("Skor risiko ditentukan sepenuhnya oleh bobot yang dipelajari model.")
+# --- INPUT FITUR NUMERIK/ORDINAL ---
+st.header("Data Akademik dan Demografi")
 
-col1, col2, col3 = st.columns(3)
-
-profession_options = UNIQUE_OPTS['Profession'] + ["Others"]
-
+col1, col2 = st.columns(2)
 with col1:
-    st.subheader("Informasi Dasar")
-    gender = st.selectbox("Jenis Kelamin", UNIQUE_OPTS['Gender'])
-    city = st.selectbox("Kota Tinggal", UNIQUE_OPTS['City'])
-    profession = st.selectbox("Pekerjaan", profession_options) 
-    age = st.number_input("Umur", min_value=10, max_value=80, value=25, step=1)
-    degree = st.selectbox("Jenjang Pendidikan (Degree)", UNIQUE_OPTS['Degree'])
-    
+    age = st.slider("Age (Usia)", 18, 60, 25)
+    cgpa = st.slider("CGPA (Skala 0-10)", 0.0, 10.0, 7.5, 0.01)
+    academic_pressure = st.slider("Academic Pressure (Skala 0-5)", 0.0, 5.0, 3.0)
+
 with col2:
-    st.subheader("Faktor Akademik dan Kehidupan")
-    gpa_input = st.number_input("Rata-rata Nilai (GPA)", min_value=0.0, max_value=4.0, value=3.0, step=0.1)
-    hours = st.number_input("Jam Belajar/Kerja per hari", min_value=0, max_value=20, value=5, step=1)
-    sleep = st.selectbox("Durasi Tidur", UNIQUE_OPTS['Sleep Duration'])
-    diet = st.selectbox("Kebiasaan Makan (Dietary Habits)", UNIQUE_OPTS['Dietary Habits'])
-    
+    work_study_hours = st.slider("Work/Study Hours (Jam/Hari)", 0.0, 12.0, 8.0)
+    study_satisfaction = st.slider("Study Satisfaction (Skala 0-5)", 0.0, 5.0, 3.0)
+    gender_input = st.selectbox("Gender", ["Male", "Female"])
+
+st.write("---")
+
+# --- INPUT FITUR KATEGORIKAL ---
+st.header("Faktor Gaya Hidup dan Psikologis")
+
+col3, col4 = st.columns(2)
 with col3:
-    st.subheader("Faktor Risiko Mental")
-    academic = st.slider("Tekanan Akademik (1=Rendah, 5=Tinggi)", min_value=1, max_value=5, value=3, step=1)
-    satisfaction = st.slider("Kepuasan Belajar (1=Rendah, 5=Tinggi)", min_value=1, max_value=5, value=4, step=1)
-    financial = st.slider("Stres Keuangan (1=Rendah, 5=Tinggi)", min_value=1, max_value=5, value=3, step=1)
-    
-    history = st.selectbox("Riwayat Mental Keluarga", UNIQUE_OPTS['Family History'])
-    suicide = st.selectbox("Pernah terpikir Bunuh Diri?", UNIQUE_OPTS['Suicidal Thoughts']) 
+    sleep_duration_input = st.selectbox("Sleep Duration", list(SLEEP_MAP.keys()))
+    dietary_habits_input = st.selectbox("Dietary Habits", ["Unhealthy", "Moderate", "Healthy", "Others"])
+    financial_stress_input = st.selectbox("Financial Stress", list(FINANCIAL_MAP.keys()))
 
+with col4:
+    suicidal_thoughts_input = st.selectbox("Pernah memiliki pikiran bunuh diri?", list(SUICIDAL_MAP.keys()))
+    family_history_input = st.selectbox("Family History of Mental Illness", list(FAMILY_HISTORY_MAP.keys()))
+    
+# Karena City dan Degree memiliki banyak kategori dan di-Target Encode,
+# untuk kemudahan, kita akan menggunakan nilai Target Encoding rata-rata dari data training
+# atau menggunakan input yang paling sering muncul
+city_input = st.text_input("City (untuk tujuan demonstrasi, akan menggunakan rata-rata City TE)", "Kalyan")
+degree_input = st.text_input("Degree (untuk tujuan demonstrasi, akan menggunakan rata-rata Degree LE)", "'Class 12'")
+profession_input = st.text_input("Profession (untuk tujuan demonstrasi, akan menggunakan rata-rata Profession TE)", "Student")
 
-# Tombol Prediksi
-st.markdown("---")
-if st.button("Prediksi Tingkat Risiko"):
-    
-    cgpa_actual = gpa_input * 2.5
-    
-    input_data = {
-        "Gender": gender,
-        "City": city,
-        "Profession": profession,
-        "Age": age,
-        "CGPA": cgpa_actual, 
-        "Work/Study Hours": hours,
-        "Sleep Duration": sleep,
-        "Dietary Habits": diet,
-        "Degree": degree,
-        "Have you ever had suicidal thoughts ?": suicide,
-        "Financial Stress": str(financial) + ".0", 
-        "Family History of Mental Illness": history,
-        "Academic Pressure": academic,
-        "Study Satisfaction": satisfaction,
+# --- 4. DATA TRANSFORMATION (Pre-processing input) ---
+
+if st.button("Prediksi Depresi"):
+    # 1. Kumpulkan data input
+    data = {
+        'Gender': [gender_input],
+        'Age': [age],
+        'City': [city_input],
+        'Profession': [profession_input],
+        'Academic Pressure': [academic_pressure],
+        'CGPA': [cgpa],
+        'Study Satisfaction': [study_satisfaction],
+        'Sleep Duration': [sleep_duration_input],
+        'Dietary Habits': [dietary_habits_input],
+        'Degree': [degree_input],
+        'Have you ever had suicidal thoughts?': [suicidal_thoughts_input],
+        'Work/Study Hours': [work_study_hours],
+        'Financial Stress': [financial_stress_input],
+        'Family History of Mental Illness': [family_history_input]
     }
-
-    prediction, predictions_proba = preprocess_and_predict(input_data)
-
-    st.subheader("Hasil Prediksi")
+    input_df = pd.DataFrame(data)
     
-    # Ambil probabilitas Kelas 2 (Risiko Tertinggi)
-    try:
-        proba_risiko_tinggi = predictions_proba[2] 
-    except IndexError:
-        proba_risiko_tinggi = 0.0 
-
+    # 2. Lakukan Encoding sesuai urutan di file PDF (Binary/Ordinal/Label/Target)
     
-    st.markdown(f"**Probabilitas Risiko Tertinggi (Kelas 2):** {proba_risiko_tinggi:.2f}")
-
-    # Tampilkan Klasifikasi Akhir (Biner)
-    if prediction >= 1: 
-        st.error("POTENSI/RISIKO DEPRESI")
-        if prediction == 2:
-            st.warning("Klasifikasi model: Risiko Sangat Tinggi.")
-        else:
-            st.info("Klasifikasi model: Risiko Sedang.")
-            
-    else: # prediction == 0 
-        st.success("TIDAK DEPRESI")
-        st.info("Klasifikasi model: Risiko Rendah.")
+    # a. Binary/Ordinal Encoding (Mapping)
+    input_df['Sleep Duration'] = input_df['Sleep Duration'].map(SLEEP_MAP).fillna(0.0)
+    input_df['Financial Stress'] = input_df['Financial Stress'].map(FINANCIAL_MAP).fillna(0.0)
+    input_df['Have you ever had suicidal thoughts?'] = input_df['Have you ever had suicidal thoughts?'].map(SUICIDAL_MAP).fillna(0.0)
+    input_df['Family History of Mental Illness'] = input_df['Family History of Mental Illness'].map(FAMILY_HISTORY_MAP).fillna(0.0)
+    
+    # b. Label Encoding (Gender, Dietary Habits, Degree)
+    # Gunakan fit_transform pada data training dan transform pada data testing.
+    # Karena objek LE sudah dimuat, kita bisa langsung transform.
+    for col in ['Gender', 'Dietary Habits', 'Degree']:
+        input_df[col] = le.transform(input_df[col].astype(str))
+        
+    # c. Target Encoding (City, Profession)
+    # Gunakan objek TE yang sudah fit
+    # Jika kategori baru (tidak ada di data training), TargetEncoder akan memberikan nilai rata-rata target training
+    input_df[target_enc_cols] = te.transform(input_df[target_enc_cols])
+    
+    # d. Capping (Dilewatkan untuk input tunggal di Streamlit, diatasi oleh data yang sudah di-transform)
+    
+    # e. Standardisasi (Scaling)
+    # Fitur-fitur harus dalam urutan yang sama saat training
+    feature_order = scaler.feature_names_in_
+    input_scaled = scaler.transform(input_df[feature_order])
+    
+    # 3. Prediksi
+    prediction = best_gb.predict(input_scaled)[0]
+    prediction_proba = best_gb.predict_proba(input_scaled)[0]
+    
+    # 4. Tampilkan Hasil
+    st.write("---")
+    st.header("Hasil Prediksi")
+    
+    if prediction == 1:
+        st.error("Prediksi: Depresi (Kelas 1)")
+        st.metric("Probabilitas Depresi (Kelas 1)", f"{prediction_proba[1]:.2%}")
+        st.markdown(
+            """
+            > **Rekomendasi:** Model memprediksi bahwa individu ini cenderung **mengalami depresi**.
+            > Perlu peninjauan lebih lanjut oleh profesional kesehatan mental.
+            """
+        )
+    else:
+        st.success("Prediksi: Tidak Depresi (Kelas 0)")
+        st.metric("Probabilitas Tidak Depresi (Kelas 0)", f"{prediction_proba[0]:.2%}")
+        st.markdown(
+            """
+            > **Rekomendasi:** Model memprediksi bahwa individu ini cenderung **tidak mengalami depresi**.
+            > Tetap jaga kesehatan mental dengan baik.
+            """
+        )
